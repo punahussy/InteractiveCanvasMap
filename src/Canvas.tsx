@@ -12,51 +12,60 @@ interface Point {
 }
 
 function Canvas({ width, height }: ICanvasProps) {
+    const defaultImageUrl = 'https://upload.wikimedia.org/wikipedia/commons/6/6b/Map-Africa-Regions-Islands.png';
+    const mapMarkerUrl = 'https://upload.wikimedia.org/wikipedia/commons/f/f2/678111-map-marker-512.png';
+    const markerSize = 16; //px
+
     const canvasRef = useRef(null);
     const [points, addPoints] = useState<Point[]>([]);
 
-    function drawAll(ctx: CanvasRenderingContext2D) {
-        ctx.fillStyle = 'yellow';
-        ctx.fillRect(10, 10, 100, 100);    
-        points.forEach((point) => drawPoint(ctx, point))
+    async function drawPoint(ctx: CanvasRenderingContext2D, point: Point) {
+        //ctx.fillStyle = "red";
+        //ctx.fillRect(point.x, point.y, 10, 10);
+        const marker = await fetchImage(mapMarkerUrl);
+        marker.onload = () => ctx.drawImage(marker, point.x - markerSize / 2, point.y - markerSize / 2, markerSize, markerSize);
     }
 
-    function drawPoint(ctx: CanvasRenderingContext2D, point: Point) {
-        ctx.fillStyle = "red";
-        ctx.fillRect(point.x, point.y, 10, 10);
+    function drawPoints(ctx: CanvasRenderingContext2D) {
+        points.forEach(async (point) => await drawPoint(ctx, point))
     }
 
-    async function drawImage(ctx: CanvasRenderingContext2D, img: HTMLImageElement){
-        console.log("drwa");
+    async function drawMap(ctx: CanvasRenderingContext2D, img: HTMLImageElement) {
         ctx.drawImage(img, 0, 0);
-        drawAll(ctx);
     }
 
-    const fetchImage = async (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-        //const url: string = `https://picsum.photos/${width}/${height}`;
-        const url: string = 'https://media.hswstatic.com/eyJidWNrZXQiOiJjb250ZW50Lmhzd3N0YXRpYy5jb20iLCJrZXkiOiJnaWZcL21hcHMuanBnIiwiZWRpdHMiOnsicmVzaXplIjp7IndpZHRoIjo4Mjh9LCJ0b0Zvcm1hdCI6ImF2aWYifX0=';
-        const res = await fetch(url);
+    const drawEverything = async (ctx: CanvasRenderingContext2D, imgUrl = defaultImageUrl) => {
+        let img = await fetchImage(imgUrl);
+        img.onload = async () => { 
+            await drawMap(ctx, img);
+            await drawPoints(ctx);
+        }
+    };
+
+    //Работает только с png и jpg. Для вектора нужно написать отдельный метод
+    //По идее должно работать и с gif, но не хочет
+    const fetchImage = async (imgUrl: string) => {
+        const res = await fetch(imgUrl);
         const imageBlob = await res.blob();
         const imageObjectURL = URL.createObjectURL(imageBlob);
         let img = new Image();
         img.src = imageObjectURL;
-        img.onload = async () => await drawImage(ctx, img);
-      };
+        return img;
+    }
 
-      const handleCanvasClick=(event: any)=>{
+    const handleCanvasClick = (event: any) => {
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
         const bounds = canvas.getBoundingClientRect();
-        const currentCoord = { x: event.clientX - bounds.left, y: event.clientY - bounds.top};
+        const currentCoord = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
         addPoints([...points, currentCoord]);
-      };
+    };
 
     useEffect(() => {
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
         const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
 
-        fetchImage(context, context.canvas.width, context.canvas.height);
+        drawEverything(context);
     });
-
 
     return <canvas onClick={handleCanvasClick} ref={canvasRef} width={width} height={height} />;
 }
