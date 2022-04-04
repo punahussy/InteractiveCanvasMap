@@ -23,7 +23,7 @@ function Canvas({ width, height }: ICanvasProps) {
         //ctx.fillStyle = "red";
         //ctx.fillRect(point.x, point.y, 10, 10);
         const marker = await fetchImage(mapMarkerUrl);
-        marker.onload = () => ctx.drawImage(marker, point.x - markerSize / 2, point.y - markerSize / 2, markerSize, markerSize);
+        marker.onload = () => ctx.drawImage(marker, point.x - markerSize / 2, point.y - markerSize, markerSize, markerSize);
     }
 
     function drawPoints(ctx: CanvasRenderingContext2D) {
