@@ -6,8 +6,11 @@ function App() {
 
   return (
     <div className="App">
+      
       <header className="App-header">
-        <Canvas width={1000} height={800}/>
+        <div style={{border: '3px solid green'}}>
+          <Canvas width={1000} height={800}/>
+        </div>
       </header>
     </div>
   );
