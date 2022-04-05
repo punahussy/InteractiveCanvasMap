@@ -29,7 +29,7 @@ function Canvas({ width, height }: ICanvasProps) {
 
     async function drawPoint(ctx: CanvasRenderingContext2D, point: Point) {
         ctx.fillStyle = "red";
-        ctx.fillRect(point.x, point.y, markerSize, markerSize);
+        ctx.fillRect(point.x - markerSize / 2, point.y - markerSize / 2, markerSize, markerSize);
         const marker = await fetchImage(mapMarkerUrl);
         //marker.onload = () => ctx.drawImage(marker, point.x - markerSize / 2, point.y - markerSize, markerSize, markerSize);
     }
@@ -42,9 +42,9 @@ function Canvas({ width, height }: ICanvasProps) {
         ctx.drawImage(img, 0, 0);
     }
 
-    const drawEverything = async (ctx: CanvasRenderingContext2D, imgUrl = defaultMapUrl) => {
+    async function drawMapFromCache(ctx: CanvasRenderingContext2D, mapUrl: string) {
         if (mapImage.src == "" || mapImage.src == undefined) {
-            const img = await fetchImage(imgUrl);
+            const img = await fetchImage(mapUrl);
             setMapImage(img);
             img.onload = async () => {
                 await drawMap(ctx, img);
@@ -53,6 +53,10 @@ function Canvas({ width, height }: ICanvasProps) {
         else {
             await drawMap(ctx, mapImage);
         }
+    }
+
+    const drawEverything = async (ctx: CanvasRenderingContext2D, mapUrl = defaultMapUrl) => {
+        await drawMapFromCache(ctx, mapUrl);
         await drawPoints(ctx);
     };
 
@@ -86,19 +90,6 @@ function Canvas({ width, height }: ICanvasProps) {
         return {x: newX, y: newY};
     }
 
-    const handleCanvasClick = (event: any) => {
-        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
-        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
-
-        const bounds = canvas.getBoundingClientRect();
-        const currentCoord = { x: (event.clientX - bounds.left), y: event.clientY - bounds.top};
-
-        const inverseMatrix = context.getTransform().inverse();
-        const adjPoint = adjustPointPos(currentCoord, inverseMatrix);
-
-        addPoints([...points, adjPoint]);
-    };
-
     useEffect(() => {
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
         const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
@@ -124,6 +115,19 @@ function Canvas({ width, height }: ICanvasProps) {
         context.clearRect(newPos.x - canvas.width, newPos.y - canvas.height, canvas.width + newPos.x, canvas.height + newPos.y);
         drawEverything(context);
     }, [translateY, translateX, scale]);
+
+    const handleCanvasClick = (event: any) => {
+        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
+        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
+
+        const bounds = canvas.getBoundingClientRect();
+        const currentCoord = { x: (event.clientX - bounds.left), y: event.clientY - bounds.top};
+
+        const inverseMatrix = context.getTransform().inverse();
+        const adjPoint = adjustPointPos(currentCoord, inverseMatrix);
+
+        addPoints([...points, adjPoint]);
+    };
 
     const handleCanvasPan = (event: any) => {
         setTranslateY(event.deltaY * -1);
