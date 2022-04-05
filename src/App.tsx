@@ -7,7 +7,7 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <Canvas width={1000} height={1000}/>
+        <Canvas width={1000} height={800}/>
       </header>
     </div>
   );

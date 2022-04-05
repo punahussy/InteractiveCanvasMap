@@ -1,5 +1,4 @@
-import { render } from '@testing-library/react';
-import React, { MouseEvent, useEffect, useRef, useState } from 'react'
+import React, {useEffect, useRef, useState } from 'react'
 
 interface ICanvasProps {
     width: number;
@@ -16,19 +15,23 @@ function Canvas({ width, height }: ICanvasProps) {
     const mapMarkerUrl = 'https://upload.wikimedia.org/wikipedia/commons/f/f2/678111-map-marker-512.png';
     const markerSize = 16; //px
 
+    const [mapImage, setMapImage] = useState(new Image());
+
     const canvasRef = useRef(null);
     const [points, addPoints] = useState<Point[]>([]);
     const [translateY, setTranslateY] = useState(0);
     const [translateX, setTranslateX] = useState(0);
-    const [totalTranslate, setTotalTranslate] = useState({x: 0,y: 0});
+    const [totalTranslate, setTotalTranslate] = useState({x: 0, y: 0});
+
+    const [scale, setScale] = useState(1);
 
     const imageCache: Map<string, HTMLImageElement> = new Map();
 
     async function drawPoint(ctx: CanvasRenderingContext2D, point: Point) {
-        //ctx.fillStyle = "red";
-        //ctx.fillRect(point.x, point.y, 10, 10);
+        ctx.fillStyle = "red";
+        ctx.fillRect(point.x, point.y, markerSize, markerSize);
         const marker = await fetchImage(mapMarkerUrl);
-        marker.onload = () => ctx.drawImage(marker, point.x - markerSize / 2, point.y - markerSize, markerSize, markerSize);
+        //marker.onload = () => ctx.drawImage(marker, point.x - markerSize / 2, point.y - markerSize, markerSize, markerSize);
     }
 
     function drawPoints(ctx: CanvasRenderingContext2D) {
@@ -40,11 +43,17 @@ function Canvas({ width, height }: ICanvasProps) {
     }
 
     const drawEverything = async (ctx: CanvasRenderingContext2D, imgUrl = defaultMapUrl) => {
-        let img = await fetchImage(imgUrl);
-        img.onload = async () => {
-            await drawMap(ctx, img);
-            await drawPoints(ctx);
+        if (mapImage.src == "" || mapImage.src == undefined) {
+            const img = await fetchImage(imgUrl);
+            setMapImage(img);
+            img.onload = async () => {
+                await drawMap(ctx, img);
+            }
         }
+        else {
+            await drawMap(ctx, mapImage);
+        }
+        await drawPoints(ctx);
     };
 
     //Работает только с png и jpg. Для вектора нужно написать отдельный метод
@@ -109,11 +118,12 @@ function Canvas({ width, height }: ICanvasProps) {
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
         const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
 
-        context.clearRect(0, 0, canvas.width - translateX, canvas.height + translateY);
-        console.log(`TRANSLATE ${totalTranslate.x}, ${totalTranslate.y}`);
         context.translate(translateX, translateY);
+        context.scale(scale, scale);
+        const newPos = adjustPointPos({x: canvas.width, y: canvas.height}, context.getTransform().inverse());
+        context.clearRect(newPos.x - canvas.width, newPos.y - canvas.height, canvas.width + newPos.x, canvas.height + newPos.y);
         drawEverything(context);
-    }, [translateY, translateX]);
+    }, [translateY, translateX, scale]);
 
     const handleCanvasPan = (event: any) => {
         setTranslateY(event.deltaY * -1);
@@ -121,8 +131,10 @@ function Canvas({ width, height }: ICanvasProps) {
         setTotalTranslate({x: totalTranslate.x + event.deltaX, y: totalTranslate.y + event.deltaY});
     }
 
-    return <div style={{ position: 'fixed' }}>
-        <canvas onWheel={handleCanvasPan} onClick={handleCanvasClick} ref={canvasRef} width={width} height={height} />
+    return <div>
+        <div className='canvas'>
+            <canvas onWheel={handleCanvasPan} onClick={handleCanvasClick} ref={canvasRef} width={width} height={height} />
+        </div>
     </div>;
 }
 
