@@ -8,7 +8,7 @@ function App() {
     <div className="App">
       
       <header className="App-header">
-        <div style={{border: '3px solid green'}}>
+        <div>
           <Canvas width={1000} height={800}/>
         </div>
       </header>

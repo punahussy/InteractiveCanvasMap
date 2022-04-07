@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 interface ICanvasProps {
     width: number;
@@ -12,26 +12,19 @@ interface Point {
 
 function Canvas({ width, height }: ICanvasProps) {
     const defaultMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/6/6b/Map-Africa-Regions-Islands.png';
-    const mapMarkerUrl = 'https://upload.wikimedia.org/wikipedia/commons/f/f2/678111-map-marker-512.png';
     const markerSize = 16; //px
 
     const [mapImage, setMapImage] = useState(new Image());
 
     const canvasRef = useRef(null);
     const [points, addPoints] = useState<Point[]>([]);
-    const [translateY, setTranslateY] = useState(0);
-    const [translateX, setTranslateX] = useState(0);
-    const [totalTranslate, setTotalTranslate] = useState({x: 0, y: 0});
+    const [translate, setTranslate] = useState({ x: 0, y: 0 });
 
     const [scale, setScale] = useState(1);
-
-    const imageCache: Map<string, HTMLImageElement> = new Map();
 
     async function drawPoint(ctx: CanvasRenderingContext2D, point: Point) {
         ctx.fillStyle = "red";
         ctx.fillRect(point.x - markerSize / 2, point.y - markerSize / 2, markerSize, markerSize);
-        const marker = await fetchImage(mapMarkerUrl);
-        //marker.onload = () => ctx.drawImage(marker, point.x - markerSize / 2, point.y - markerSize, markerSize, markerSize);
     }
 
     function drawPoints(ctx: CanvasRenderingContext2D) {
@@ -43,7 +36,7 @@ function Canvas({ width, height }: ICanvasProps) {
     }
 
     async function drawMapFromCache(ctx: CanvasRenderingContext2D, mapUrl: string) {
-        if (mapImage.src == "" || mapImage.src == undefined) {
+        if (mapImage.src === "" || mapImage.src === undefined) {
             const img = await fetchImage(mapUrl);
             setMapImage(img);
             img.onload = async () => {
@@ -56,6 +49,7 @@ function Canvas({ width, height }: ICanvasProps) {
     }
 
     const drawEverything = async (ctx: CanvasRenderingContext2D, mapUrl = defaultMapUrl) => {
+        await clearCanvas(ctx.canvas, ctx);
         await drawMapFromCache(ctx, mapUrl);
         await drawPoints(ctx);
     };
@@ -71,73 +65,137 @@ function Canvas({ width, height }: ICanvasProps) {
         return img;
     }
 
-    const fetchCachedImage = async (imgUrl: string) => {
-        console.log(imageCache.has(imgUrl));
-        if (!imageCache.has(imgUrl)) {
-            console.log("was not in cache");
-            const img = await fetchImage(imgUrl);
-            imageCache.set(imgUrl, img);
-            console.log("cached");
-            console.log(imageCache);
-        }
-        const image = imageCache.get(imgUrl) ;
-        return image ?? new Image();
-    }
-
     const adjustPointPos = (point: Point, imatrix: DOMMatrix): Point => {
         const newX = point.x * imatrix.a + point.y * imatrix.c + imatrix.e;
         const newY = point.x * imatrix.b + point.y * imatrix.d + imatrix.f;
-        return {x: newX, y: newY};
+        return { x: newX, y: newY };
     }
 
-    useEffect(() => {
-        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
-        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
-
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        drawEverything(context);
-    }, []);
-
-    useEffect(() =>  {
-        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
-        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
-        
-        drawPoints(context);
-    }, [points]);
-
-    useEffect(() => {
-        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
-        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
-
-        context.translate(translateX, translateY);
-        context.scale(scale, scale);
-        const newPos = adjustPointPos({x: canvas.width, y: canvas.height}, context.getTransform().inverse());
-        context.clearRect(newPos.x - canvas.width, newPos.y - canvas.height, canvas.width + newPos.x, canvas.height + newPos.y);
-        drawEverything(context);
-    }, [translateY, translateX, scale]);
-
-    const handleCanvasClick = (event: any) => {
+    const getPositionOnCanvas = (point: Point): Point => {
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
         const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
 
         const bounds = canvas.getBoundingClientRect();
-        const currentCoord = { x: (event.clientX - bounds.left), y: event.clientY - bounds.top};
-
+        const currentCoord = { x: (point.x - bounds.left), y: point.y - bounds.top };
         const inverseMatrix = context.getTransform().inverse();
-        const adjPoint = adjustPointPos(currentCoord, inverseMatrix);
+        return adjustPointPos(currentCoord, inverseMatrix);
+    }
+
+    const clearCanvas = (canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) => {
+        const newPos = adjustPointPos({ x: canvas.width, y: canvas.height }, context.getTransform().inverse());
+        const realWidth = canvas.width + newPos.x;
+        const realHeight = canvas.height + newPos.y
+        context.clearRect(0, 0, realWidth, realHeight);
+    }
+
+    //initialization
+    useEffect(() => {
+        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
+        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
+
+        canvas.addEventListener('wheel', handleTouchbarPanZoom, false);
+        canvas.addEventListener('mousedown', onPointerDown, false);
+        canvas.addEventListener('mousemove', onPointerMove, false);
+        canvas.addEventListener('mouseup', onPointerUp, false);
+
+        clearCanvas(canvas, context);
+        drawEverything(context);
+    }, []);
+
+    //drawing points
+    useEffect(() => {
+        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
+        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
+        drawPoints(context);
+    }, [points]);
+
+    //pan-zoom
+    useEffect(() => {
+        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
+        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
+
+        clearCanvas(canvas, context);
+        context.translate(translate.x, translate.y);
+        clearCanvas(canvas, context);
+        drawEverything(context);
+
+    }, [translate, scale]);
+
+    const handleClick = (event: React.MouseEvent) => {
+        event.preventDefault();
+        const adjPoint = getPositionOnCanvas({ x: event.clientX, y: event.clientY })
 
         addPoints([...points, adjPoint]);
     };
 
-    const handleCanvasPan = (event: any) => {
-        setTranslateY(event.deltaY * -1);
-        setTranslateX(event.deltaX * -1);
-        setTotalTranslate({x: totalTranslate.x + event.deltaX, y: totalTranslate.y + event.deltaY});
+    const handleTouchbarPanZoom = (event: WheelEvent) => {
+        event.preventDefault();
+
+        if (event.ctrlKey) {
+            let zoomRate: number = 1;
+            if (event.deltaY < 0) {
+                zoomRate = 1.05
+            }
+            else if (event.deltaY > 0) {
+                zoomRate = 0.9
+            }
+            zoomCanvas(zoomRate);
+        }
+
+        console.log(scale);
+        const newTranslate = { x: event.deltaX * -1 * (2 / scale), y: event.deltaY * -1 * (2 / scale) };
+        setTranslate(newTranslate);
+    }
+
+    let isDragging: boolean = false;
+    let dragStart: Point = { x: 0, y: 0 }
+
+    const onPointerDown = (event: MouseEvent) => {
+        isDragging = true;
+        dragStart = getPositionOnCanvas({ x: event.clientX, y: event.clientY });
+    }
+
+    const onPointerUp = (event: MouseEvent) => {
+        isDragging = false;
+    }
+
+    const onPointerMove = (event: MouseEvent) => {
+        if (isDragging) {
+            console.log("dragging!");
+            const pointerPos = getPositionOnCanvas({ x: event.clientX, y: event.clientY });
+            const newTranslate = { x: pointerPos.x - dragStart.x, y: pointerPos.y - dragStart.y };
+            setTranslate(newTranslate);
+        }
+    }
+
+    const zoomCanvas = (zoomFactor: number) => {
+        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
+        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
+
+        context.scale(zoomFactor, zoomFactor);
+        setScale(scale + zoomFactor);
+
+    }
+    
+    const resetCanvas = () => {
+        addPoints([]);
+        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
+        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
+        
+        context.resetTransform();
+        setTranslate({x: 0, y: 0});
+        setScale(1);
     }
 
     return <div>
-        <div className='canvas'>
-            <canvas onWheel={handleCanvasPan} onClick={handleCanvasClick} ref={canvasRef} width={width} height={height} />
+        <div className='buttons' style={{ background: "blue", padding: '5px', display: 'flex' }}>
+            <h4 style={{color: 'white', margin: 0}} >LMB - Move, RBG - Place marker</h4>
+            <button onClick={() => resetCanvas()}>Reset</button>
+            <button onClick={() => zoomCanvas(2)}>+</button>
+            <button onClick={() => zoomCanvas(0.5)}>-</button>
+        </div>
+        <div className='canvas' style={{ overflow: 'hidden', border: '3px solid green', userSelect: 'none', background: '#4a2c2a' }}>
+            <canvas onContextMenu={(e) => handleClick(e)} ref={canvasRef} width={width} height={height} />
         </div>
     </div>;
 }
