@@ -12,7 +12,8 @@ interface Point {
 
 function Canvas({ width, height }: ICanvasProps) {
     const defaultMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/6/6b/Map-Africa-Regions-Islands.png';
-    const markerSize = 16; //px
+    //const defaultMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Blank_Map_-_RussiaFederalSubjects_2007-07.svg/2560px-Blank_Map_-_RussiaFederalSubjects_2007-07.svg.png';
+    const markerSize = 8; //px
 
     const [mapImage, setMapImage] = useState(new Image());
 
@@ -25,6 +26,10 @@ function Canvas({ width, height }: ICanvasProps) {
     async function drawPoint(ctx: CanvasRenderingContext2D, point: Point) {
         ctx.fillStyle = "red";
         ctx.fillRect(point.x - markerSize / 2, point.y - markerSize / 2, markerSize, markerSize);
+        ctx.font = "12px Courier";
+        ctx.textAlign = "center";
+        ctx.fillStyle = "black";
+        ctx.fillText("Починки", point.x, point.y - markerSize);
     }
 
     function drawPoints(ctx: CanvasRenderingContext2D) {
@@ -52,6 +57,7 @@ function Canvas({ width, height }: ICanvasProps) {
         await clearCanvas(ctx.canvas, ctx);
         await drawMapFromCache(ctx, mapUrl);
         await drawPoints(ctx);
+
     };
 
     //Работает только с png и jpg. Для вектора нужно написать отдельный метод
@@ -161,7 +167,6 @@ function Canvas({ width, height }: ICanvasProps) {
 
     const onPointerMove = (event: MouseEvent) => {
         if (isDragging) {
-            console.log("dragging!");
             const pointerPos = getPositionOnCanvas({ x: event.clientX, y: event.clientY });
             const newTranslate = { x: pointerPos.x - dragStart.x, y: pointerPos.y - dragStart.y };
             setTranslate(newTranslate);
@@ -174,7 +179,6 @@ function Canvas({ width, height }: ICanvasProps) {
 
         context.scale(zoomFactor, zoomFactor);
         setScale(scale + zoomFactor);
-
     }
     
     const resetCanvas = () => {
@@ -187,9 +191,9 @@ function Canvas({ width, height }: ICanvasProps) {
         setScale(1);
     }
 
-    return <div>
+    return <div style={{height: '100vh'}}>
         <div className='buttons' style={{ background: "blue", padding: '5px', display: 'flex' }}>
-            <h4 style={{color: 'white', margin: 0}} >LMB - Move, RBG - Place marker</h4>
+            <h4 style={{color: 'white', margin: 0}} >LMB - Move, RMB - Place marker</h4>
             <button onClick={() => resetCanvas()}>Reset</button>
             <button onClick={() => zoomCanvas(2)}>+</button>
             <button onClick={() => zoomCanvas(0.5)}>-</button>
