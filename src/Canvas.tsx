@@ -103,6 +103,7 @@ function Canvas({ width, height }: ICanvasProps) {
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
         const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
 
+        //Тут ничего не трогать, иначе всё почему-то перестает работать
         canvas.addEventListener('wheel', handleTouchbarPanZoom, false);
         canvas.addEventListener('mousedown', onPointerDown, false);
         canvas.addEventListener('mousemove', onPointerMove, false);
@@ -156,7 +157,7 @@ function Canvas({ width, height }: ICanvasProps) {
         }
 
         console.log(scale);
-        const newTranslate = { x: event.deltaX * -1 * (2 / scale), y: event.deltaY * -1 * (2 / scale) };
+        const newTranslate = { x: event.deltaX * -1 * (1 / scale), y: event.deltaY * -1 * (1 / scale) };
         setTranslate(newTranslate);
     }
 
