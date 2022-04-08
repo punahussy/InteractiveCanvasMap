@@ -213,10 +213,10 @@ function Canvas({ width, height }: ICanvasProps) {
             <button onClick={() => zoomCanvas(2)}>+</button>
             <button onClick={() => zoomCanvas(0.5)}>-</button>
         </div>
-        <div className='canvas' style={{ overflow: 'hidden', border: '3px solid green', userSelect: 'none', background: '#4a2c2a' }}>
+        <div style={{background: '#6f4e37'}}>
             <canvas onContextMenu={(e) => handleClick(e)} ref={canvasRef} width={width} height={height} />
         </div>
-    </div>;
+    </div>
 }
 
 export default Canvas;
