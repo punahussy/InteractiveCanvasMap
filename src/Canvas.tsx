@@ -8,12 +8,14 @@ interface ICanvasProps {
 interface Point {
     x: number;
     y: number;
+    name?: string | null;
 }
 
 function Canvas({ width, height }: ICanvasProps) {
-    const defaultMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/6/6b/Map-Africa-Regions-Islands.png';
+    //const defaultMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/6/6b/Map-Africa-Regions-Islands.png';
     //const defaultMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Blank_Map_-_RussiaFederalSubjects_2007-07.svg/2560px-Blank_Map_-_RussiaFederalSubjects_2007-07.svg.png';
-    const markerSize = 8; //px
+    const defaultMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/8/8f/Africa_relief_location_map-no_borders.jpg';
+    const markerSize = 10; //px
 
     const [mapImage, setMapImage] = useState(new Image());
 
@@ -23,15 +25,17 @@ function Canvas({ width, height }: ICanvasProps) {
 
     const [scale, setScale] = useState(1);
 
+    //drawing point with name
     async function drawPoint(ctx: CanvasRenderingContext2D, point: Point) {
         ctx.fillStyle = "red";
         ctx.fillRect(point.x - markerSize / 2, point.y - markerSize / 2, markerSize, markerSize);
-        ctx.font = "12px Courier";
+        ctx.font = `${12 + 12 * (1 / scale)}px Courier`;
         ctx.textAlign = "center";
         ctx.fillStyle = "black";
-        ctx.fillText("Починки", point.x, point.y - markerSize);
+        ctx.fillText(point.name ?? "Без названия", point.x, point.y - markerSize);
     }
 
+    //draw all points
     function drawPoints(ctx: CanvasRenderingContext2D) {
         points.forEach(async (point) => await drawPoint(ctx, point))
     }
@@ -74,7 +78,7 @@ function Canvas({ width, height }: ICanvasProps) {
     const adjustPointPos = (point: Point, imatrix: DOMMatrix): Point => {
         const newX = point.x * imatrix.a + point.y * imatrix.c + imatrix.e;
         const newY = point.x * imatrix.b + point.y * imatrix.d + imatrix.f;
-        return { x: newX, y: newY };
+        return { x: newX, y: newY, name: point.name };
     }
 
     const getPositionOnCanvas = (point: Point): Point => {
@@ -82,7 +86,7 @@ function Canvas({ width, height }: ICanvasProps) {
         const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
 
         const bounds = canvas.getBoundingClientRect();
-        const currentCoord = { x: (point.x - bounds.left), y: point.y - bounds.top };
+        const currentCoord = { x: (point.x - bounds.left), y: point.y - bounds.top, name: point.name };
         const inverseMatrix = context.getTransform().inverse();
         return adjustPointPos(currentCoord, inverseMatrix);
     }
@@ -122,18 +126,21 @@ function Canvas({ width, height }: ICanvasProps) {
 
         clearCanvas(canvas, context);
         context.translate(translate.x, translate.y);
-        clearCanvas(canvas, context);
         drawEverything(context);
 
     }, [translate, scale]);
 
+    //add point
     const handleClick = (event: React.MouseEvent) => {
         event.preventDefault();
-        const adjPoint = getPositionOnCanvas({ x: event.clientX, y: event.clientY })
-
-        addPoints([...points, adjPoint]);
+        const pointName = prompt("Введите название", "Починки");
+        if (pointName !== null) {
+            const adjPoint = getPositionOnCanvas({ x: event.clientX, y: event.clientY, name: pointName })
+            addPoints([...points, adjPoint]);
+        }
     };
 
+    //Touchbar pan-zoom
     const handleTouchbarPanZoom = (event: WheelEvent) => {
         event.preventDefault();
 
@@ -153,12 +160,15 @@ function Canvas({ width, height }: ICanvasProps) {
         setTranslate(newTranslate);
     }
 
+    //#region Drag pan
     let isDragging: boolean = false;
     let dragStart: Point = { x: 0, y: 0 }
 
     const onPointerDown = (event: MouseEvent) => {
-        isDragging = true;
-        dragStart = getPositionOnCanvas({ x: event.clientX, y: event.clientY });
+        if (event.button === 0) {
+            isDragging = true;
+            dragStart = getPositionOnCanvas({ x: event.clientX, y: event.clientY });
+        }
     }
 
     const onPointerUp = (event: MouseEvent) => {
@@ -166,21 +176,25 @@ function Canvas({ width, height }: ICanvasProps) {
     }
 
     const onPointerMove = (event: MouseEvent) => {
-        if (isDragging) {
+        if (isDragging && event.button === 0) {
             const pointerPos = getPositionOnCanvas({ x: event.clientX, y: event.clientY });
             const newTranslate = { x: pointerPos.x - dragStart.x, y: pointerPos.y - dragStart.y };
             setTranslate(newTranslate);
         }
     }
 
+    //#endregion Drag pan
+
+    //Zooming canvas
     const zoomCanvas = (zoomFactor: number) => {
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
         const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
 
         context.scale(zoomFactor, zoomFactor);
-        setScale(scale + zoomFactor);
+        setScale(scale * zoomFactor);
     }
     
+    //Clear points and pan-zoom
     const resetCanvas = () => {
         addPoints([]);
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
