@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import Canvas from './Canvas';
+import DagonCanvas from './DagonCanvas';
 
 function App() {
 
@@ -9,7 +9,7 @@ function App() {
       
       <header className="App-header">
         <div>
-          <Canvas width={1000} height={800}/>
+          <DagonCanvas width={1000} height={800}/>
         </div>
       </header>
     </div>

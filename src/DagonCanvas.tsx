@@ -1,18 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { fetchImage } from './api/dagonCanvasAPI';
+import { Point, add } from './math/Point';
 
-interface ICanvasProps {
+interface IDagonCanvasProps {
     width: number;
     height: number;
 }
 
-interface Point {
-    x: number;
-    y: number;
-    name?: string | null;
-}
-
-function Canvas({ width, height }: ICanvasProps) {
-    //const defaultMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/6/6b/Map-Africa-Regions-Islands.png';
+function DagonCanvas({ width, height }: IDagonCanvasProps) {
     //const defaultMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Blank_Map_-_RussiaFederalSubjects_2007-07.svg/2560px-Blank_Map_-_RussiaFederalSubjects_2007-07.svg.png';
     const defaultMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/8/8f/Africa_relief_location_map-no_borders.jpg';
     const markerSize = 10; //px
@@ -23,13 +18,11 @@ function Canvas({ width, height }: ICanvasProps) {
     const [points, addPoints] = useState<Point[]>([]);
     const [translate, setTranslate] = useState({ x: 0, y: 0 });
 
-    const [scale, setScale] = useState(1);
-
     //drawing point with name
     async function drawPoint(ctx: CanvasRenderingContext2D, point: Point) {
         ctx.fillStyle = "red";
         ctx.fillRect(point.x - markerSize / 2, point.y - markerSize / 2, markerSize, markerSize);
-        ctx.font = `${12 + 12 * (1 / scale)}px Courier`;
+        ctx.font = `16px Courier`;
         ctx.textAlign = "center";
         ctx.fillStyle = "black";
         ctx.fillText(point.name ?? "Без названия", point.x, point.y - markerSize);
@@ -61,19 +54,7 @@ function Canvas({ width, height }: ICanvasProps) {
         await clearCanvas(ctx.canvas, ctx);
         await drawMapFromCache(ctx, mapUrl);
         await drawPoints(ctx);
-
     };
-
-    //Работает только с png и jpg. Для вектора нужно написать отдельный метод
-    //По идее должно работать и с gif, но не хочет
-    const fetchImage = async (imgUrl: string) => {
-        const response = await fetch(imgUrl);
-        const imageBlob = await response.blob();
-        const imageObjectURL = URL.createObjectURL(imageBlob);
-        let img = new Image();
-        img.src = imageObjectURL;
-        return img;
-    }
 
     const adjustPointPos = (point: Point, imatrix: DOMMatrix): Point => {
         const newX = point.x * imatrix.a + point.y * imatrix.c + imatrix.e;
@@ -129,7 +110,7 @@ function Canvas({ width, height }: ICanvasProps) {
         context.translate(translate.x, translate.y);
         drawEverything(context);
 
-    }, [translate, scale]);
+    }, [translate]);
 
     //add point
     const handleClick = (event: React.MouseEvent) => {
@@ -145,19 +126,17 @@ function Canvas({ width, height }: ICanvasProps) {
     const handleTouchbarPanZoom = (event: WheelEvent) => {
         event.preventDefault();
 
+        let zoomTranslate: Point = {x: 0, y: 0};
         if (event.ctrlKey) {
-            let zoomRate: number = 1;
-            if (event.deltaY < 0) {
-                zoomRate = 1.05
-            }
-            else if (event.deltaY > 0) {
-                zoomRate = 0.9
-            }
+            const zoomRate = event.deltaY * 0.01;
             zoomCanvas(zoomRate);
+            const zoomPoint = getPositionOnCanvas({x: event.clientX, y: event.clientY})
+            const zoomTranslate = {x: zoomPoint.x * zoomRate, y: zoomPoint.y * zoomRate};
+            setTranslate(zoomTranslate);
         }
 
-        console.log(scale);
-        const newTranslate = { x: event.deltaX * -1 * (1 / scale), y: event.deltaY * -1 * (1 / scale) };
+        const panTranslate = { x: event.deltaX * -1, y: event.deltaY * -1 };
+        const newTranslate = add(zoomTranslate, panTranslate);
         setTranslate(newTranslate);
     }
 
@@ -191,8 +170,7 @@ function Canvas({ width, height }: ICanvasProps) {
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
         const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
 
-        context.scale(zoomFactor, zoomFactor);
-        setScale(scale * zoomFactor);
+        context.scale(1 - zoomFactor, 1 - zoomFactor);
     }
     
     //Clear points and pan-zoom
@@ -203,7 +181,6 @@ function Canvas({ width, height }: ICanvasProps) {
         
         context.resetTransform();
         setTranslate({x: 0, y: 0});
-        setScale(1);
     }
 
     return <div style={{height: '100vh'}}>
@@ -213,11 +190,10 @@ function Canvas({ width, height }: ICanvasProps) {
             <button onClick={() => zoomCanvas(2)}>+</button>
             <button onClick={() => zoomCanvas(0.5)}>-</button>
         </div>
-        <div className='canvas' style={{ overflow: 'hidden', 
-                border: '3px solid green', userSelect: 'none', background: '#4a2c2a' }}>            
+        <div className='canvas' style={{border: '3px solid green', userSelect: 'none', background: '#4a2c2a' }}>            
             <canvas onContextMenu={(e) => handleClick(e)} ref={canvasRef} width={width} height={height} />
         </div>
     </div>
 }
 
-export default Canvas;
+export default DagonCanvas;
