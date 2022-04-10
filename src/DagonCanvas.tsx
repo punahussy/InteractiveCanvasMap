@@ -98,7 +98,9 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
     useEffect(() => {
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
         const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
-        drawPoints(context);
+        if (points.length > 0) {
+            drawPoint(context, points[points.length - 1]);
+        }
     }, [points]);
 
     //pan-zoom
