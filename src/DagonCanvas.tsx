@@ -18,13 +18,13 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
     const [points, addPoints] = useState<Point[]>([]);
     const [translate, setTranslate] = useState({ x: 0, y: 0 });
 
-    let scale = 1;
+    const [scale, setScale] = useState(1);
 
     //drawing point with name
     async function drawPoint(ctx: CanvasRenderingContext2D, point: Point) {
         ctx.fillStyle = "red";
         ctx.fillRect(point.x - markerSize / 2, point.y - markerSize / 2, markerSize, markerSize);
-        ctx.font = `16px Courier`;
+        ctx.font = `${16 + 16 * (1 / scale)}px Courier`;
         ctx.textAlign = "center";
         ctx.fillStyle = "black";
         ctx.fillText(point.name ?? "Без названия", point.x, point.y - markerSize);
@@ -110,6 +110,7 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
         const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
 
+        //Здесь нужно обязательно очистить канвас перед изменением транслейта
         clearCanvas(canvas, context);
         context.translate(translate.x, translate.y);
         drawEverything(context);
@@ -126,16 +127,25 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
         }
     };
 
+    //Zooming canvas
+    const zoomCanvas = (zoomFactor: number) => {
+        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
+        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
+
+        setScale(scale - zoomFactor);
+        context.scale(1 - zoomFactor, 1 - zoomFactor);
+    }
+
     //Touchbar pan-zoom
     const handleTouchbarPanZoom = (event: WheelEvent) => {
         event.preventDefault();
 
-        let zoomTranslate: Point = {x: 0, y: 0};
+        let zoomTranslate: Point = { x: 0, y: 0 };
         if (event.ctrlKey) {
             const zoomRate = event.deltaY * 0.01;
             zoomCanvas(zoomRate);
-            const zoomPoint = getPositionOnCanvas({x: event.clientX, y: event.clientY})
-            zoomTranslate = {x: zoomPoint.x * zoomRate, y: zoomPoint.y * zoomRate};
+            const zoomPoint = getPositionOnCanvas({ x: event.clientX, y: event.clientY })
+            zoomTranslate = { x: zoomPoint.x * zoomRate, y: zoomPoint.y * zoomRate };
         }
 
         const panTranslate = { x: event.deltaX * -1, y: event.deltaY * -1 };
@@ -168,33 +178,24 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
 
     //#endregion Drag pan
 
-    //Zooming canvas
-    const zoomCanvas = (zoomFactor: number) => {
-        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
-        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
-
-        scale -= zoomFactor;
-        context.scale(1 - zoomFactor, 1 - zoomFactor);
-    }
-    
     //Clear points and pan-zoom
     const resetCanvas = () => {
         addPoints([]);
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
         const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
-        
+
         context.resetTransform();
-        setTranslate({x: 0, y: 0});
+        setTranslate({ x: 0, y: 0 });
     }
 
-    return <div style={{height: '100vh'}}>
+    return <div style={{ height: '100vh' }}>
         <div className='buttons' style={{ background: "blue", padding: '5px', display: 'flex' }}>
-            <h4 style={{color: 'white', margin: 0}} >LMB - Move, RMB - Place marker</h4>
+            <h4 style={{ color: 'white', margin: 0 }} >LMB - Move, RMB - Place marker</h4>
             <button onClick={() => resetCanvas()}>Reset</button>
-            <button onClick={() => zoomCanvas(2)}>+</button>
-            <button onClick={() => zoomCanvas(0.5)}>-</button>
+            <button onClick={() => zoomCanvas(-0.1)}>+</button>
+            <button onClick={() => zoomCanvas(0.1)}>-</button>
         </div>
-        <div className='canvas' style={{border: '3px solid green', userSelect: 'none', background: '#4a2c2a' }}>            
+        <div className='canvas' style={{ border: '3px solid green', userSelect: 'none', background: '#4a2c2a' }}>
             <canvas onContextMenu={(e) => handleClick(e)} ref={canvasRef} width={width} height={height} />
         </div>
     </div>

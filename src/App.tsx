@@ -9,7 +9,7 @@ function App() {
       
       <header className="App-header">
         <div>
-          <DagonCanvas width={1000} height={800}/>
+          <DagonCanvas width={window.innerWidth} height={window.innerHeight}/>
         </div>
       </header>
     </div>
