@@ -18,6 +18,8 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
     const [points, addPoints] = useState<Point[]>([]);
     const [translate, setTranslate] = useState({ x: 0, y: 0 });
 
+    let scale = 1;
+
     //drawing point with name
     async function drawPoint(ctx: CanvasRenderingContext2D, point: Point) {
         ctx.fillStyle = "red";
@@ -133,8 +135,7 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
             const zoomRate = event.deltaY * 0.01;
             zoomCanvas(zoomRate);
             const zoomPoint = getPositionOnCanvas({x: event.clientX, y: event.clientY})
-            const zoomTranslate = {x: zoomPoint.x * zoomRate, y: zoomPoint.y * zoomRate};
-            setTranslate(zoomTranslate);
+            zoomTranslate = {x: zoomPoint.x * zoomRate, y: zoomPoint.y * zoomRate};
         }
 
         const panTranslate = { x: event.deltaX * -1, y: event.deltaY * -1 };
@@ -172,6 +173,7 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
         const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
 
+        scale -= zoomFactor;
         context.scale(1 - zoomFactor, 1 - zoomFactor);
     }
     
