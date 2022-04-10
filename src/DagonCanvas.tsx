@@ -178,9 +178,8 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
 
     //#endregion Drag pan
 
-    //Clear points and pan-zoom
-    const resetCanvas = () => {
-        addPoints([]);
+    //Reset pan-zoom
+    const resetPanZoom = () => {
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
         const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
 
@@ -188,14 +187,22 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
         setTranslate({ x: 0, y: 0 });
     }
 
+    const clearPoints = () => {
+        addPoints([]);
+        setTranslate({ x: 0, y: 0 });
+    }
+
     return <div style={{ height: '100vh' }}>
-        <div className='buttons' style={{ background: "blue", padding: '5px', display: 'flex' }}>
-            <h4 style={{ color: 'white', margin: 0 }} >LMB - Move, RMB - Place marker</h4>
-            <button onClick={() => resetCanvas()}>Reset</button>
-            <button onClick={() => zoomCanvas(-0.1)}>+</button>
-            <button onClick={() => zoomCanvas(0.1)}>-</button>
+        <div className='buttons' style={{ color: "white",background: "#1B1827", padding: '5px', display: 'flex', alignItems: "center" }}>
+            <h4 style={{ color: 'white', margin: 0, marginLeft: '5px' }} >Project Dagon interactive map canvas</h4>
+            <button style={{background: '#783FE6', borderRadius: '6px', color: 'white', marginLeft: '35px'}} onClick={() => resetPanZoom()}>
+                <b>Center view</b>
+            </button>
+            <button style={{background: '#783FE6', borderRadius: '6px', color: 'white', marginLeft: '15px'}} onClick={() => clearPoints()}>
+                <b>Clear points</b>
+            </button>
         </div>
-        <div className='canvas' style={{ border: '3px solid green', userSelect: 'none', background: '#4a2c2a' }}>
+        <div className='canvas' style={{ border: '3px solid #1B1827', userSelect: 'none', background: '#332F46' }}>
             <canvas onContextMenu={(e) => handleClick(e)} ref={canvasRef} width={width} height={height} />
         </div>
     </div>
