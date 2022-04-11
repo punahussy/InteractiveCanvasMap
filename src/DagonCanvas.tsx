@@ -20,6 +20,8 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
 
     const [scale, setScale] = useState(1);
 
+    const [tool, setTool] = useState("Hand");
+
     //drawing point with name
     async function drawPoint(ctx: CanvasRenderingContext2D, point: Point) {
         ctx.fillStyle = "red";
@@ -158,7 +160,7 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
     let dragStart: Point = { x: 0, y: 0 }
 
     const onPointerDown = (event: MouseEvent) => {
-        if (event.button === 0) {
+        if (event.button === 0 && tool === "Hand") {
             isDragging = true;
             dragStart = getPositionOnCanvas({ x: event.clientX, y: event.clientY });
         }
@@ -200,6 +202,12 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
             </button>
             <button style={{background: '#783FE6', borderRadius: '6px', color: 'white', marginLeft: '15px'}} onClick={() => clearPoints()}>
                 <b>Clear points</b>
+            </button>
+            <button style={{background: '#783FE6', borderRadius: '6px', color: 'white', marginLeft: '15px'}} onClick={() => setTool("Not hand")}>
+                <b>Change tool</b>
+            </button>
+            <button style={{background: '#783FE6', borderRadius: '6px', color: 'white', marginLeft: '15px'}} onClick={() => console.log(tool)}>
+                <b>Print tool</b>
             </button>
         </div>
         <div className='canvas' style={{ border: '3px solid #1B1827', userSelect: 'none', background: '#332F46' }}>
