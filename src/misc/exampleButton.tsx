@@ -8,9 +8,9 @@ interface buttonProps {
 
 export default function ExampleButton(props: buttonProps) {
   return (
-    <button style={{ background: props.disabled? 'green' : '#783FE6', borderRadius: '6px', color: 'white', marginLeft: '15px' }} 
+    <button style={{ background: props.disabled? 'green' : '#783FE6', padding: '10px',borderRadius: '6px', color: 'white', marginTop: '5px' }} 
         onClick={props.clickHandler} disabled={props.disabled}>
-            {props.title}
+            <b>{props.title}</b>
     </button>
   )
 }

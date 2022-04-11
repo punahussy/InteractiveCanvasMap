@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { fetchImage } from './api/dagonCanvasAPI';
-import { Point, add, reversePointTransform } from './math/Point';
+import { Point, add, reversePointTransform, findPointInRadius } from './math/PointUtils';
 import { cursorStyles } from './tools/cursorStyles';
 import { tools } from './tools/tools';
 import ExampleButton from './misc/exampleButton';
@@ -8,9 +8,11 @@ import ExampleButton from './misc/exampleButton';
 interface IDagonCanvasProps {
     width: number;
     height: number;
+    mapUrl?: string;
+    markerClickHandler?: (point: Point) => void;
 }
 
-function DagonCanvas({ width, height }: IDagonCanvasProps) {
+function DagonCanvas({ width, height, mapUrl, markerClickHandler }: IDagonCanvasProps) {
     const defaultMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/8/8f/Africa_relief_location_map-no_borders.jpg';
     const markerSize = 10; //px
     const [mapImage, setMapImage] = useState(new Image());
@@ -21,7 +23,7 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
     const [translate, setTranslate] = useState({ x: 0, y: 0 });
     const [scale, setScale] = useState(1);
 
-    const [currentTool, setTool] = useState(tools.panCanvas);
+    const [currentTool, setCurrentTool] = useState(tools.panCanvas);
 
     function getCanvasInstances(): { canvas: HTMLCanvasElement, context: CanvasRenderingContext2D } {
         const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
@@ -44,7 +46,7 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
         ctx.fillRect(point.x - markerSize / 2, point.y - markerSize / 2, markerSize, markerSize);
 
         //не работает, надо потыкать
-        ctx.font = `${16 + 16 * (1 / scale)}px Courier`;
+        ctx.font = `${10 + markerSize * (1 / scale)}px Courier new`;
         ctx.textAlign = "center";
         ctx.fillStyle = "black";
         ctx.fillText(point.name ?? "Без названия", point.x, point.y - markerSize);
@@ -80,12 +82,13 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
         const newPos = getPositionOnCanvas({ x: canvasTuple.canvas.width, y: canvasTuple.canvas.height });
         const realWidth = canvasTuple.canvas.width + newPos.x;
         const realHeight = canvasTuple.canvas.height + newPos.y
-        canvasTuple.context.clearRect(0, 0, realWidth, realHeight);
+        canvasTuple.context.clearRect(-canvasTuple.canvas.width, -canvasTuple.canvas.height, realWidth, realHeight);
     }
 
-    const drawEverything = async (mapUrl = defaultMapUrl) => {
+    const drawEverything = async () => {
+        const imgUrl = mapUrl ?? defaultMapUrl;
         await clearCanvas();
-        await drawMapFromCache(mapUrl);
+        await drawMapFromCache(imgUrl);
         await drawPoints();
     };
 
@@ -95,39 +98,6 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
         canvasInstances.context.resetTransform();
         setTranslate({ x: 0, y: 0 });
     }
-
-    const clearPoints = () => {
-        setMarkers([]);
-        setTranslate({ x: 0, y: 0 });
-    }
-
-    //initialization
-    useEffect(() => {
-        const canvasInstances = getCanvasInstances();
-
-        //ТODO:
-        canvasInstances.canvas.addEventListener('wheel', handleTouchbarPanZoom, false);
-
-        clearCanvas();
-        drawEverything();
-    }, []);
-
-    //On markers update (draw last marker)
-    useEffect(() => {
-        if (markers.length > 0) {
-            drawPoint(markers[markers.length - 1]);
-        }
-    }, [markers]);
-
-    //On translate update
-    useEffect(() => {
-        const ctx = getCanvasInstances().context;
-        //Здесь нужно обязательно очистить канвас перед изменением транслейта
-        clearCanvas();
-        ctx.translate(translate.x, translate.y);
-        drawEverything();
-
-    }, [translate]);
 
     //Zooming canvas
     const zoomCanvas = (zoomFactor: number) => {
@@ -160,9 +130,29 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
         if (pointName !== null) {
             const adjPoint = getPositionOnCanvas({ x: event.clientX, y: event.clientY, name: pointName })
             setMarkers([...markers, adjPoint]);
-            setTool(tools.panCanvas);
+            setCurrentTool(tools.panCanvas);
         }
     };
+
+    const onMarkerClick = (event: React.MouseEvent) => {
+        const clickPos = getPositionOnCanvas({ x: event.clientX, y: event.clientY });
+        const closestMarker = findPointInRadius(markers, clickPos, markerSize);
+        //тут почему-то обязательно проверять на undefined вот так
+        if (closestMarker.index !== undefined) {
+            if (markerClickHandler) {
+                markerClickHandler(markers[closestMarker.index]);
+            }
+            //TODO:
+            const pointName = markers[closestMarker.index].name;
+            let newName = prompt("Введите новое название:", pointName ?? "");
+            if (newName) {
+                //А почему это вообще легально????
+                markers[closestMarker.index].name = newName;
+                drawEverything();
+                setCurrentTool(tools.panCanvas);
+            }
+        }
+    }
 
     //#region Drag pan
     const [isDragging, setDragging] = useState(false);
@@ -170,7 +160,8 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
 
     const startDrag = (event: React.MouseEvent) => {
         setDragging(true);
-        setDragStart(getPositionOnCanvas({ x: event.clientX, y: event.clientY }));
+        const _dragStart = getPositionOnCanvas({ x: event.clientX, y: event.clientY });
+        setDragStart(_dragStart);
     }
 
     const drag = (event: React.MouseEvent) => {
@@ -187,22 +178,52 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
 
     //#endregion Drag pan
 
+
     //Bindings of tool handlers to tools
     const toolHandlers = new Map<tools, (e: React.MouseEvent) => void>([
         [tools.plantMarker, plantMarker],
-        [tools.panCanvas, startDrag]
+        [tools.panCanvas, startDrag],
+        [tools.editMarker, onMarkerClick]
     ])
 
+    //initialization
+    useEffect(() => {
+        const canvasInstances = getCanvasInstances();
+
+        //ТODO: Это лучше никуда не перебиндивать, очень странно начинает себя вести
+        canvasInstances.canvas.addEventListener('wheel', handleTouchbarPanZoom, false);
+
+        clearCanvas();
+        drawEverything();
+    }, []);
+
+    //On markers update (draw last marker)
+    useEffect(() => {
+        if (markers.length > 0) {
+            drawPoint(markers[markers.length - 1]);
+        }
+    }, [markers]);
+
+    //On translate update
+    useEffect(() => {
+        const ctx = getCanvasInstances().context;
+        //Здесь нужно обязательно очистить канвас перед изменением транслейта
+        ctx.translate(translate.x, translate.y);
+        drawEverything();
+
+    }, [translate]);
+
     return <div style={{ height: '100vh' }}>
-        <div className='topBar' style={{ color: "white", background: "#1B1827", padding: '5px', display: 'flex', alignItems: "center" }}>
-            <h4 style={{ color: 'white', margin: 0, marginLeft: '5px' }}>
-                Project Dagon interactive map canvas
-            </h4>
+        <h4 style={{ color: 'white', margin: '5px' }}>
+            Dagon Interactive Canvas System (DICS)
+        </h4>
+        <div className='topBar' style={{ color: "white", background: "#1B1827", display: 'block', position: 'fixed', width: '5vw', height: '100vh', }}>
+
 
             <ExampleButton clickHandler={resetPanZoom} title={"Center view"} />
-            <ExampleButton clickHandler={clearPoints} title={"Remove markers"} />
-            <ExampleButton clickHandler={() => setTool(tools.panCanvas)} title="Move around" disabled={currentTool === tools.panCanvas} />
-            <ExampleButton clickHandler={() => setTool(tools.plantMarker)} title={"Plant marker"} disabled={currentTool === tools.plantMarker} />
+            <ExampleButton clickHandler={() => setCurrentTool(tools.panCanvas)} title="Move around" disabled={currentTool === tools.panCanvas} />
+            <ExampleButton clickHandler={() => setCurrentTool(tools.plantMarker)} title={"Plant marker"} disabled={currentTool === tools.plantMarker} />
+            <ExampleButton clickHandler={() => setCurrentTool(tools.editMarker)} title={"Edit marker"} disabled={currentTool === tools.editMarker} />
         </div>
 
         <div className='canvas' style={{ border: '3px solid #1B1827', background: '#332F46', cursor: isDragging ? "grabbing" : cursorStyles.get(currentTool) }}
