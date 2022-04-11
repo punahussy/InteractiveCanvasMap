@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { fetchImage } from './api/dagonCanvasAPI';
-import { Point, add } from './math/Point';
+import { Point, add, reversePointTransform } from './math/Point';
+import { cursorStyles } from './tools/cursorStyles';
+import { tools } from './tools/tools';
+import ExampleButton from './misc/exampleButton';
 
 interface IDagonCanvasProps {
     width: number;
@@ -8,24 +11,39 @@ interface IDagonCanvasProps {
 }
 
 function DagonCanvas({ width, height }: IDagonCanvasProps) {
-    //const defaultMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Blank_Map_-_RussiaFederalSubjects_2007-07.svg/2560px-Blank_Map_-_RussiaFederalSubjects_2007-07.svg.png';
     const defaultMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/8/8f/Africa_relief_location_map-no_borders.jpg';
     const markerSize = 10; //px
-
     const [mapImage, setMapImage] = useState(new Image());
 
+    //Pan-zoom draw utils
     const canvasRef = useRef(null);
-    const [points, addPoints] = useState<Point[]>([]);
+    const [markers, setMarkers] = useState<Point[]>([]);
     const [translate, setTranslate] = useState({ x: 0, y: 0 });
-
     const [scale, setScale] = useState(1);
 
-    const [tool, setTool] = useState("Hand");
+    const [currentTool, setTool] = useState(tools.panCanvas);
 
-    //drawing point with name
-    async function drawPoint(ctx: CanvasRenderingContext2D, point: Point) {
+    function getCanvasInstances(): { canvas: HTMLCanvasElement, context: CanvasRenderingContext2D } {
+        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
+        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
+        return { canvas, context };
+    }
+
+    const getPositionOnCanvas = (point: Point): Point => {
+        const canvasInstances = getCanvasInstances();
+        const bounds = canvasInstances.canvas.getBoundingClientRect();
+        const currentCoord = { x: (point.x - bounds.left), y: point.y - bounds.top, name: point.name };
+        const inverseMatrix = canvasInstances.context.getTransform().inverse();
+        return reversePointTransform(currentCoord, inverseMatrix);
+    }
+
+    //draw single point with name
+    async function drawPoint(point: Point) {
+        const ctx = getCanvasInstances().context;
         ctx.fillStyle = "red";
         ctx.fillRect(point.x - markerSize / 2, point.y - markerSize / 2, markerSize, markerSize);
+
+        //не работает, надо потыкать
         ctx.font = `${16 + 16 * (1 / scale)}px Courier`;
         ctx.textAlign = "center";
         ctx.fillStyle = "black";
@@ -33,109 +51,89 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
     }
 
     //draw all points
-    function drawPoints(ctx: CanvasRenderingContext2D) {
-        points.forEach(async (point) => await drawPoint(ctx, point))
+    function drawPoints() {
+        markers.forEach(async (point) => await drawPoint(point))
     }
 
-    async function drawMap(ctx: CanvasRenderingContext2D, img: HTMLImageElement) {
+    //Draw map
+    async function drawMap(img: HTMLImageElement) {
+        const ctx = getCanvasInstances().context;
         ctx.drawImage(img, 0, 0);
     }
 
-    async function drawMapFromCache(ctx: CanvasRenderingContext2D, mapUrl: string) {
+    //Draw map from cache if available, if not, fetch and cache
+    async function drawMapFromCache(mapUrl: string) {
         if (mapImage.src === "" || mapImage.src === undefined) {
             const img = await fetchImage(mapUrl);
             setMapImage(img);
             img.onload = async () => {
-                await drawMap(ctx, img);
+                await drawMap(img);
             }
         }
         else {
-            await drawMap(ctx, mapImage);
+            await drawMap(mapImage);
         }
     }
 
-    const drawEverything = async (ctx: CanvasRenderingContext2D, mapUrl = defaultMapUrl) => {
-        await clearCanvas(ctx.canvas, ctx);
-        await drawMapFromCache(ctx, mapUrl);
-        await drawPoints(ctx);
+    const clearCanvas = () => {
+        const canvasTuple = getCanvasInstances();
+        const newPos = getPositionOnCanvas({ x: canvasTuple.canvas.width, y: canvasTuple.canvas.height });
+        const realWidth = canvasTuple.canvas.width + newPos.x;
+        const realHeight = canvasTuple.canvas.height + newPos.y
+        canvasTuple.context.clearRect(0, 0, realWidth, realHeight);
+    }
+
+    const drawEverything = async (mapUrl = defaultMapUrl) => {
+        await clearCanvas();
+        await drawMapFromCache(mapUrl);
+        await drawPoints();
     };
 
-    const adjustPointPos = (point: Point, imatrix: DOMMatrix): Point => {
-        const newX = point.x * imatrix.a + point.y * imatrix.c + imatrix.e;
-        const newY = point.x * imatrix.b + point.y * imatrix.d + imatrix.f;
-        return { x: newX, y: newY, name: point.name };
+    //Reset pan-zoom
+    const resetPanZoom = () => {
+        const canvasInstances = getCanvasInstances();
+        canvasInstances.context.resetTransform();
+        setTranslate({ x: 0, y: 0 });
     }
 
-    const getPositionOnCanvas = (point: Point): Point => {
-        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
-        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
-
-        const bounds = canvas.getBoundingClientRect();
-        const currentCoord = { x: (point.x - bounds.left), y: point.y - bounds.top, name: point.name };
-        const inverseMatrix = context.getTransform().inverse();
-        return adjustPointPos(currentCoord, inverseMatrix);
-    }
-
-    const clearCanvas = (canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) => {
-        const newPos = adjustPointPos({ x: canvas.width, y: canvas.height }, context.getTransform().inverse());
-        const realWidth = canvas.width + newPos.x;
-        const realHeight = canvas.height + newPos.y
-        context.clearRect(0, 0, realWidth, realHeight);
+    const clearPoints = () => {
+        setMarkers([]);
+        setTranslate({ x: 0, y: 0 });
     }
 
     //initialization
     useEffect(() => {
-        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
-        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
+        const canvasInstances = getCanvasInstances();
 
-        //Тут ничего не трогать, иначе всё почему-то перестает работать
-        canvas.addEventListener('wheel', handleTouchbarPanZoom, false);
-        canvas.addEventListener('mousedown', onPointerDown, false);
-        canvas.addEventListener('mousemove', onPointerMove, false);
-        canvas.addEventListener('mouseup', onPointerUp, false);
+        //ТODO:
+        canvasInstances.canvas.addEventListener('wheel', handleTouchbarPanZoom, false);
 
-        clearCanvas(canvas, context);
-        drawEverything(context);
+        clearCanvas();
+        drawEverything();
     }, []);
 
-    //drawing points
+    //On markers update (draw last marker)
     useEffect(() => {
-        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
-        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
-        if (points.length > 0) {
-            drawPoint(context, points[points.length - 1]);
+        if (markers.length > 0) {
+            drawPoint(markers[markers.length - 1]);
         }
-    }, [points]);
+    }, [markers]);
 
-    //pan-zoom
+    //On translate update
     useEffect(() => {
-        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
-        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
-
+        const ctx = getCanvasInstances().context;
         //Здесь нужно обязательно очистить канвас перед изменением транслейта
-        clearCanvas(canvas, context);
-        context.translate(translate.x, translate.y);
-        drawEverything(context);
+        clearCanvas();
+        ctx.translate(translate.x, translate.y);
+        drawEverything();
 
     }, [translate]);
 
-    //add point
-    const handleClick = (event: React.MouseEvent) => {
-        event.preventDefault();
-        const pointName = prompt("Введите название", "Починки");
-        if (pointName !== null) {
-            const adjPoint = getPositionOnCanvas({ x: event.clientX, y: event.clientY, name: pointName })
-            addPoints([...points, adjPoint]);
-        }
-    };
-
     //Zooming canvas
     const zoomCanvas = (zoomFactor: number) => {
-        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
-        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
-
+        const ctx = getCanvasInstances().context;
         setScale(scale - zoomFactor);
-        context.scale(1 - zoomFactor, 1 - zoomFactor);
+        ctx.scale(1 - zoomFactor, 1 - zoomFactor);
     }
 
     //Touchbar pan-zoom
@@ -155,63 +153,70 @@ function DagonCanvas({ width, height }: IDagonCanvasProps) {
         setTranslate(newTranslate);
     }
 
-    //#region Drag pan
-    let isDragging: boolean = false;
-    let dragStart: Point = { x: 0, y: 0 }
-
-    const onPointerDown = (event: MouseEvent) => {
-        if (event.button === 0 && tool === "Hand") {
-            isDragging = true;
-            dragStart = getPositionOnCanvas({ x: event.clientX, y: event.clientY });
+    //add point
+    const plantMarker = (event: React.MouseEvent) => {
+        event.preventDefault();
+        const pointName = prompt("Введите название", "Починки");
+        if (pointName !== null) {
+            const adjPoint = getPositionOnCanvas({ x: event.clientX, y: event.clientY, name: pointName })
+            setMarkers([...markers, adjPoint]);
+            setTool(tools.panCanvas);
         }
+    };
+
+    //#region Drag pan
+    const [isDragging, setDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+    const startDrag = (event: React.MouseEvent) => {
+        setDragging(true);
+        setDragStart(getPositionOnCanvas({ x: event.clientX, y: event.clientY }));
     }
 
-    const onPointerUp = (event: MouseEvent) => {
-        isDragging = false;
-    }
-
-    const onPointerMove = (event: MouseEvent) => {
-        if (isDragging && event.button === 0) {
+    const drag = (event: React.MouseEvent) => {
+        if (isDragging) {
             const pointerPos = getPositionOnCanvas({ x: event.clientX, y: event.clientY });
             const newTranslate = { x: pointerPos.x - dragStart.x, y: pointerPos.y - dragStart.y };
             setTranslate(newTranslate);
         }
     }
 
+    const endDrag = (event: React.MouseEvent) => {
+        setDragging(false);
+    }
+
     //#endregion Drag pan
 
-    //Reset pan-zoom
-    const resetPanZoom = () => {
-        const canvas: HTMLCanvasElement = canvasRef.current ?? new HTMLCanvasElement();
-        const context: CanvasRenderingContext2D = canvas.getContext("2d") ?? new CanvasRenderingContext2D();
-
-        context.resetTransform();
-        setTranslate({ x: 0, y: 0 });
-    }
-
-    const clearPoints = () => {
-        addPoints([]);
-        setTranslate({ x: 0, y: 0 });
-    }
+    //Bindings of tool handlers to tools
+    const toolHandlers = new Map<tools, (e: React.MouseEvent) => void>([
+        [tools.plantMarker, plantMarker],
+        [tools.panCanvas, startDrag]
+    ])
 
     return <div style={{ height: '100vh' }}>
-        <div className='buttons' style={{ color: "white",background: "#1B1827", padding: '5px', display: 'flex', alignItems: "center" }}>
-            <h4 style={{ color: 'white', margin: 0, marginLeft: '5px' }} >Project Dagon interactive map canvas</h4>
-            <button style={{background: '#783FE6', borderRadius: '6px', color: 'white', marginLeft: '35px'}} onClick={() => resetPanZoom()}>
-                <b>Center view</b>
-            </button>
-            <button style={{background: '#783FE6', borderRadius: '6px', color: 'white', marginLeft: '15px'}} onClick={() => clearPoints()}>
-                <b>Clear points</b>
-            </button>
-            <button style={{background: '#783FE6', borderRadius: '6px', color: 'white', marginLeft: '15px'}} onClick={() => setTool("Not hand")}>
-                <b>Change tool</b>
-            </button>
-            <button style={{background: '#783FE6', borderRadius: '6px', color: 'white', marginLeft: '15px'}} onClick={() => console.log(tool)}>
-                <b>Print tool</b>
-            </button>
+        <div className='topBar' style={{ color: "white", background: "#1B1827", padding: '5px', display: 'flex', alignItems: "center" }}>
+            <h4 style={{ color: 'white', margin: 0, marginLeft: '5px' }}>
+                Project Dagon interactive map canvas
+            </h4>
+
+            <ExampleButton clickHandler={resetPanZoom} title={"Center view"} />
+            <ExampleButton clickHandler={clearPoints} title={"Remove markers"} />
+            <ExampleButton clickHandler={() => setTool(tools.panCanvas)} title="Move around" disabled={currentTool === tools.panCanvas} />
+            <ExampleButton clickHandler={() => setTool(tools.plantMarker)} title={"Plant marker"} disabled={currentTool === tools.plantMarker} />
         </div>
-        <div className='canvas' style={{ border: '3px solid #1B1827', userSelect: 'none', background: '#332F46' }}>
-            <canvas onContextMenu={(e) => handleClick(e)} ref={canvasRef} width={width} height={height} />
+
+        <div className='canvas' style={{ border: '3px solid #1B1827', background: '#332F46', cursor: isDragging ? "grabbing" : cursorStyles.get(currentTool) }}
+            onMouseDown={event => {
+                const handler = toolHandlers.get(currentTool);
+                if (handler) {
+                    handler(event);
+                }
+            }}
+            onMouseMove={e => drag(e)}
+            onMouseUp={e => endDrag(e)}>
+
+            <canvas onContextMenu={e => e.preventDefault()} ref={canvasRef} width={width} height={height} />
+
         </div>
     </div>
 }
