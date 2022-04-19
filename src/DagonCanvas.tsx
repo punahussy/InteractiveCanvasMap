@@ -43,7 +43,9 @@ function DagonCanvas({ width, height, mapUrl, markerClickHandler }: IDagonCanvas
     async function drawPoint(point: Point) {
         const ctx = getCanvasInstances().context;
         ctx.fillStyle = "red";
-        ctx.fillRect(point.x - markerSize / 2, point.y - markerSize / 2, markerSize, markerSize);
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, markerSize, 0, 2 * Math.PI);
+        ctx.fill();
 
         //не работает, надо потыкать
         ctx.font = `${10 + markerSize * (1 / scale)}px Courier new`;
@@ -214,7 +216,7 @@ function DagonCanvas({ width, height, mapUrl, markerClickHandler }: IDagonCanvas
     }, [translate]);
 
     return <div style={{ height: '100vh' }}>
-        <h4 style={{ color: 'white', margin: '5px' }}>
+        <h4 style={{ color: 'white', margin: '5px', boxShadow: '0px 4px 10px 3px rgba(0, 0, 0, 0.25)'}}>
             Dagon Interactive Canvas System (DICS)
         </h4>
         <div className='topBar' style={{ color: "white", background: "#1B1827", display: 'block', position: 'fixed', width: '5vw', height: '100vh', }}>
