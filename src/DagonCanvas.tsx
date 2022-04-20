@@ -47,7 +47,7 @@ function DagonCanvas({ width, height, mapUrl, markerClickHandler }: IDagonCanvas
         ctx.arc(point.x, point.y, markerSize, 0, 2 * Math.PI);
         ctx.fill();
 
-        //не работает, надо потыкать
+        //не работает авторесайз текста, надо потыкать
         ctx.font = `${10 + markerSize * (1 / scale)}px Courier new`;
         ctx.textAlign = "center";
         ctx.fillStyle = "black";
