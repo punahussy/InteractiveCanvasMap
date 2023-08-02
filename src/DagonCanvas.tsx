@@ -15,6 +15,8 @@ interface IDagonCanvasProps {
 function DagonCanvas({ width, height, mapUrl, markerClickHandler }: IDagonCanvasProps) {
     const defaultMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/8/8f/Africa_relief_location_map-no_borders.jpg';
     const markerSize = 10; //px
+    const markerHitRadius = 10; //px
+    const [markerFontSize, setMarkerFontSize] = useState(8 + 16);
     const [mapImage, setMapImage] = useState(new Image());
 
     //Pan-zoom draw utils
@@ -41,17 +43,23 @@ function DagonCanvas({ width, height, mapUrl, markerClickHandler }: IDagonCanvas
 
     //draw single point with name
     async function drawPoint(point: Point) {
-        const ctx = getCanvasInstances().context;
-        ctx.fillStyle = "red";
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, markerSize, 0, 2 * Math.PI);
-        ctx.fill();
+		const ctx = getCanvasInstances().context;
+		ctx.fillStyle = 'red';
+		ctx.strokeStyle = 'black';
+		ctx.beginPath();
+		ctx.arc(point.x, point.y, markerHitRadius, 0, 2 * Math.PI);
+		ctx.fill();
+		ctx.beginPath();
+		ctx.arc(point.x, point.y, markerHitRadius, 0, 2 * Math.PI);
+		ctx.stroke();
 
-        //не работает авторесайз текста, надо потыкать
-        ctx.font = `${10 + markerSize * (1 / scale)}px Courier new`;
-        ctx.textAlign = "center";
-        ctx.fillStyle = "black";
-        ctx.fillText(point.name ?? "Без названия", point.x, point.y - markerSize);
+        //auto resize text
+		ctx.font = `bold ${markerFontSize}px Times new Roman`;
+		ctx.textAlign = 'center';
+		ctx.lineWidth = 2 + 2 * (1 / scale);
+		ctx.strokeText(point.name ?? "Unnamed", point.x, point.y - markerHitRadius);
+		ctx.fillStyle = 'white';
+		ctx.fillText(point.name ?? "Unnamed", point.x, point.y - markerHitRadius);
     }
 
     //draw all points
@@ -98,13 +106,17 @@ function DagonCanvas({ width, height, mapUrl, markerClickHandler }: IDagonCanvas
     const resetPanZoom = () => {
         const canvasInstances = getCanvasInstances();
         canvasInstances.context.resetTransform();
+        setMarkerFontSize(8 + 16 * (1 / scale));
         setTranslate({ x: 0, y: 0 });
     }
 
     //Zooming canvas
     const zoomCanvas = (zoomFactor: number) => {
         const ctx = getCanvasInstances().context;
-        setScale(scale - zoomFactor);
+        const matrix = ctx.getTransform();
+		const scale = Math.sqrt(matrix.a * matrix.a + matrix.b * matrix.b);
+        setScale(scale);
+		setMarkerFontSize(8 + 16 * (1 / scale));
         ctx.scale(1 - zoomFactor, 1 - zoomFactor);
     }
 
@@ -128,7 +140,7 @@ function DagonCanvas({ width, height, mapUrl, markerClickHandler }: IDagonCanvas
     //add point
     const plantMarker = (event: React.MouseEvent) => {
         event.preventDefault();
-        const pointName = prompt("Введите название", "Починки");
+        const pointName = prompt("Enter name", "Ljubljana");
         if (pointName !== null) {
             const adjPoint = getPositionOnCanvas({ x: event.clientX, y: event.clientY, name: pointName })
             setMarkers([...markers, adjPoint]);
@@ -139,16 +151,16 @@ function DagonCanvas({ width, height, mapUrl, markerClickHandler }: IDagonCanvas
     const onMarkerClick = (event: React.MouseEvent) => {
         const clickPos = getPositionOnCanvas({ x: event.clientX, y: event.clientY });
         const closestMarker = findPointInRadius(markers, clickPos, markerSize);
-        //тут почему-то обязательно проверять на undefined вот так
+        
         if (closestMarker.index !== undefined) {
             if (markerClickHandler) {
                 markerClickHandler(markers[closestMarker.index]);
             }
             //TODO:
             const pointName = markers[closestMarker.index].name;
-            let newName = prompt("Введите новое название:", pointName ?? "");
+            let newName = prompt("Enter a new name:", pointName ?? "");
             if (newName) {
-                //А почему это вообще легально????
+                //magic
                 markers[closestMarker.index].name = newName;
                 drawEverything();
                 setCurrentTool(tools.panCanvas);
@@ -192,7 +204,7 @@ function DagonCanvas({ width, height, mapUrl, markerClickHandler }: IDagonCanvas
     useEffect(() => {
         const canvasInstances = getCanvasInstances();
 
-        //ТODO: Это лучше никуда не перебиндивать, очень странно начинает себя вести
+        //Only works if binded here
         canvasInstances.canvas.addEventListener('wheel', handleTouchbarPanZoom, false);
 
         clearCanvas();
@@ -209,7 +221,7 @@ function DagonCanvas({ width, height, mapUrl, markerClickHandler }: IDagonCanvas
     //On translate update
     useEffect(() => {
         const ctx = getCanvasInstances().context;
-        //Здесь нужно обязательно очистить канвас перед изменением транслейта
+        //Clear canvas before translate
         ctx.translate(translate.x, translate.y);
         drawEverything();
 
@@ -217,7 +229,7 @@ function DagonCanvas({ width, height, mapUrl, markerClickHandler }: IDagonCanvas
 
     return <div style={{ height: '100vh' }}>
         <h4 style={{ color: 'white', margin: '5px', boxShadow: '0px 4px 10px 3px rgba(0, 0, 0, 0.25)'}}>
-            Dagon Interactive Canvas System (DICS)
+            Interactive Canvas System (ICS)
         </h4>
         <div className='topBar' style={{ color: "white", background: "#1B1827", display: 'block', position: 'fixed', width: '5vw', height: '100vh', }}>
 
